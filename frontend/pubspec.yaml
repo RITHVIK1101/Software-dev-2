@@ -21,11 +21,17 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
-<<<<<<< HEAD
-  assets:
-    - ../assets/login_background.png
-=======
   
   assets: 
     - "images/login_background.png"
->>>>>>> origin/main
+    - "images/logo.png"
+    - "images/login_text.png"
+    - "images/signup_text.png"
+    - "images/logo_student.png"
+    - "images/logo_teacher.png"
+  fonts:
+  - family: Poppins
+    fonts:
+      - asset: assets/Poppins-Black.ttf
+      - asset: assets/Poppins-Bold.ttf
+        weight: 700

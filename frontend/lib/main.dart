@@ -13,7 +13,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'School App',
+      title: 'Binder',
       theme: ThemeData(
         primarySwatch: Colors.blue,
       ),
@@ -22,7 +22,8 @@ class MyApp extends StatelessWidget {
         '/': (context) => LoginScreen(),
         '/signup': (context) => SignupScreen(),
         '/teacher': (context) {
-          final args = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>;
+          final args = ModalRoute.of(context)!.settings.arguments
+              as Map<String, dynamic>;
           return TeacherScreen(
             token: args['token'],
             school: args['school'],
@@ -31,7 +32,8 @@ class MyApp extends StatelessWidget {
           );
         },
         '/student': (context) {
-          final args = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>;
+          final args = ModalRoute.of(context)!.settings.arguments
+              as Map<String, dynamic>;
           return StudentScreen(
             token: args['token'],
             school: args['school'],
@@ -41,7 +43,8 @@ class MyApp extends StatelessWidget {
           );
         },
         '/student/classes': (context) {
-          final args = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>;
+          final args = ModalRoute.of(context)!.settings.arguments
+              as Map<String, dynamic>;
           return StudentClassesScreen(
             token: args['token'],
             userId: args['userId'],

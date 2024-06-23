@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'auth_service.dart';
 import 'screens/teacher_screen.dart';
@@ -21,17 +22,31 @@ class _LoginScreenState extends State<LoginScreen> {
 
     if (result != null) {
       print('Login successful, token: ${result['token']}');
-      final args = {
-        'token': result['token']!,
-        'school': result['school']!,
-        'firstName': result['firstName']!,
-        'lastName': result['lastName']!,
-        'userId': result['userId'] ?? '', // Ensure userId is non-nullable
-      };
       if (result['role'] == 'teacher') {
-        Navigator.pushNamed(context, '/teacher', arguments: args);
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => TeacherScreen(
+              token: result['token']!,
+              school: result['school']!,
+              firstName: result['firstName']!,
+              lastName: result['lastName']!,
+            ),
+          ),
+        );
       } else if (result['role'] == 'student') {
-        Navigator.pushNamed(context, '/student', arguments: args);
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => StudentScreen(
+              token: result['token']!,
+              school: result['school']!,
+              firstName: result['firstName']!,
+              lastName: result['lastName']!,
+              userId: '123456',
+            ),
+          ),
+        );
       }
     } else {
       print('Login failed');
@@ -39,24 +54,26 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   @override
-    Widget build(BuildContext context) {
+  Widget build(BuildContext context) {
+    double screenHeight = MediaQuery.of(context).size.height;
+    double screenWidth = MediaQuery.of(context).size.width;
+
+    double verticalPadding = screenHeight * 0.2;
+    double horizontalPadding = screenWidth * 0.05;
     return Scaffold(
-      appBar: AppBar(
-        title: Text('Login'),
-      ),
       body: Container(
         decoration: BoxDecoration(
           image: DecorationImage(
-            image: AssetImage('images/login_background.png'), // Add your background image here
+            image: AssetImage('images/login_background.png'),
             fit: BoxFit.cover,
           ),
         ),
         child: Center(
           child: Container(
             padding: EdgeInsets.all(16.0),
-      
+
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.8), // Semi-transparent background for the box
+              color: Colors.white, // Semi-transparent background for the box
               borderRadius: BorderRadius.circular(40.0), // Rounded corners
               boxShadow: [
                 BoxShadow(
@@ -66,36 +83,65 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ],
             ),
-            width: MediaQuery.of(context).size.width * 0.5, // Box width relative to screen width
+            width: MediaQuery.of(context).size.width *
+                0.5, // Box width relative to screen width
             child: Column(
               mainAxisSize: MainAxisSize.min,
               mainAxisAlignment: MainAxisAlignment.center,
-              
               children: [
-                TextField(
-                  controller: _emailController,
-                  decoration: InputDecoration(labelText: 'Email'),
+                Image.asset(
+                  'images/logo.png',
+                  height: verticalPadding * 0.7,
+                  fit: BoxFit.contain,
                 ),
-                TextField(
-                  controller: _passwordController,
-                  decoration: InputDecoration(
-                    labelText: 'Password',
-                    
-                    
-                    
-                    
+                Image.asset(
+                  'images/login_text.png',
+                  height: verticalPadding * 0.2,
+                  fit: BoxFit.contain,
+                ),
+                Padding(
+                  padding: EdgeInsets.only(
+                      top: verticalPadding * 0.5,
+                      left: horizontalPadding,
+                      right: horizontalPadding,
+                      bottom: verticalPadding * 0.1),
+                  child: TextField(
+                    controller: _emailController,
+                    decoration: InputDecoration(labelText: 'Email'),
+                  ),
+                ),
+                Padding(
+                  padding: EdgeInsets.only(
+                      left: horizontalPadding, right: horizontalPadding),
+                  child: TextField(
+                    controller: _passwordController,
+                    decoration: InputDecoration(
+                      labelText: 'Password',
                     ),
-                  obscureText: true,
+                    obscureText: true,
+                  ),
                 ),
-                SizedBox(height: MediaQuery.of(context).size.height * 0.5),
-                ElevatedButton(
-                  onPressed: _login,
-                  style: ElevatedButton.styleFrom(
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12.0),
+                SizedBox(height: screenHeight * 0.1),
+                Padding(
+                  padding: EdgeInsets.only(bottom: verticalPadding * 0.1),
+                  child: ElevatedButton(
+                    onPressed: _login,
+                    style: ElevatedButton.styleFrom(
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(9.0),
+                        ),
+                        fixedSize:
+                            Size(horizontalPadding * 8, verticalPadding * 0.3),
+                        foregroundColor: CupertinoColors.white,
+                        backgroundColor: Color.fromARGB(255, 10, 120, 189)),
+                    child: Text(
+                      'LOGIN',
+                      style: TextStyle(
+                          fontSize: verticalPadding * 0.15,
+                          fontFamily: 'Poppins',
+                          fontWeight: FontWeight.w900),
                     ),
                   ),
-                  child: Text('Login'),
                 ),
                 TextButton(
                   onPressed: () {
@@ -103,6 +149,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   },
                   child: Text('Don\'t have an account? Sign up'),
                 ),
+                Padding(padding: EdgeInsets.only(bottom: verticalPadding)),
               ],
             ),
           ),
@@ -110,5 +157,4 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
     );
   }
-  }
-
+}
