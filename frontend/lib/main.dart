@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
-import 'package:sdapp/login_screen.dart';
-import 'package:sdapp/signup_screen.dart';
-import 'package:sdapp/screens/teacher_screen.dart';
-import 'package:sdapp/screens/student_screen.dart';
-import 'package:sdapp/screens/student_classes_screen.dart';
-import 'package:sdapp/screens/teacher_assignments_screen.dart';
-import 'package:sdapp/screens/student_assignments_screen.dart';
-import 'package:sdapp/screens/teacher_to_grade_screen.dart';
-import 'package:sdapp/screens/gradebook_detailed_screen.dart';
-import 'package:sdapp/screens/calendar_screen.dart';
+import 'login_screen.dart';
+import 'signup_screen.dart';
+import 'screens/teacher_screen.dart';
+import 'screens/student_screen.dart';
+import 'screens/student_classes_screen.dart';
+import 'screens/teacher_assignments_screen.dart';
+import 'screens/student_assignments_screen.dart';
+import 'screens/teacher_to_grade_screen.dart';
+import 'screens/gradebook_detailed_screen.dart';
+import 'screens/calendar_screen.dart';
+import 'screens/ECcoordinatorscreen.dart'; // Import the new screen
 
 void main() {
   runApp(MyApp());
@@ -96,6 +97,14 @@ class MyApp extends StatelessWidget {
           final args = ModalRoute.of(context)!.settings.arguments
               as Map<String, dynamic>;
           return CalendarScreen(
+            token: args['token'],
+            userId: args['userId'],
+          );
+        },
+        '/extracurricular': (context) {
+          final args = ModalRoute.of(context)!.settings.arguments
+              as Map<String, dynamic>;
+          return EcCoordinatorChoiceScreen(
             token: args['token'],
             userId: args['userId'],
           );

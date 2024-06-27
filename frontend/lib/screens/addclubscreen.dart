@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 class AddClubScreen extends StatefulWidget {
   final String token;
@@ -29,16 +30,19 @@ class _AddClubScreenState extends State<AddClubScreen> {
     });
 
     final response = await http.post(
-      Uri.parse('http://localhost:3000/clubs'),
+      Uri.parse('http://localhost:3000/extracurricular'),
       headers: {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer ${widget.token}',
       },
       body: jsonEncode({
+        'type': 'club',
         'name': _clubNameController.text,
         'coordinatorId': widget.userId,
-        'areaOfInterest': _areaOfInterestController.text,
-        'helpEmail': _helpEmailController.text,
+        'additionalInfo': {
+          'areaOfInterest': _areaOfInterestController.text,
+          'helpEmail': _helpEmailController.text,
+        },
       }),
     );
 
@@ -50,7 +54,7 @@ class _AddClubScreenState extends State<AddClubScreen> {
       Navigator.pop(context);
     } else {
       setState(() {
-        _errorMessage = 'Failed to create club';
+        _errorMessage = 'Failed to create club: ${response.body}';
       });
     }
   }

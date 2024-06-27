@@ -4,11 +4,11 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const cors = require('cors');
 const mongoose = require('mongoose');
-const moment = require('moment');
 const { google } = require('googleapis');
 const fs = require('fs');
 const readline = require('readline');
 const path = require('path');
+const moment = require('moment'); // Add this line
 
 const app = express();
 app.use(bodyParser.json());
@@ -26,82 +26,7 @@ mongoose.connect('mongodb+srv://Rithvik:rithvik123@sdapp1.4t2ccd9.mongodb.net/my
   console.error('Error connecting to MongoDB', err);
 });
 
-// Google Calendar API setup
-const CREDENTIALS_PATH = path.join(__dirname, 'credentials.json');
-const TOKEN_PATH = path.join(__dirname, 'token.json');
-
-const SCOPES = ['https://www.googleapis.com/auth/calendar'];
-
-let oAuth2Client;
-
-// Load client secrets from a local file.
-fs.readFile(CREDENTIALS_PATH, (err, content) => {
-  if (err) return console.error('Error loading client secret file:', err);
-  authorize(JSON.parse(content));
-});
-
-function authorize(credentials) {
-  const { client_secret, client_id, redirect_uris } = credentials.installed || credentials.web;
-  oAuth2Client = new google.auth.OAuth2(client_id, client_secret, redirect_uris[0]);
-
-  fs.readFile(TOKEN_PATH, (err, token) => {
-    if (err) return getAccessToken(oAuth2Client);
-    oAuth2Client.setCredentials(JSON.parse(token));
-    console.log('Google Calendar API authenticated successfully');
-  });
-}
-
-function getAccessToken(oAuth2Client) {
-  const authUrl = oAuth2Client.generateAuthUrl({
-    access_type: 'offline',
-    scope: SCOPES,
-  });
-  console.log('Authorize this app by visiting this url:', authUrl);
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
-  });
-  rl.question('Enter the code from that page here: ', (code) => {
-    rl.close();
-    oAuth2Client.getToken(code, (err, token) => {
-      if (err) return console.error('Error retrieving access token', err);
-      oAuth2Client.setCredentials(token);
-      fs.writeFile(TOKEN_PATH, JSON.stringify(token), (err) => {
-        if (err) return console.error(err);
-        console.log('Token stored to', TOKEN_PATH);
-      });
-    });
-  });
-}
-
-async function addEventToCalendar(eventDetails) {
-  const calendar = google.calendar({ version: 'v3', auth: oAuth2Client });
-  const event = {
-    summary: eventDetails.summary,
-    description: eventDetails.description,
-    start: {
-      dateTime: eventDetails.start,
-      timeZone: 'America/Los_Angeles',
-    },
-    end: {
-      dateTime: eventDetails.end,
-      timeZone: 'America/Los_Angeles',
-    },
-  };
-  try {
-    const response = await calendar.events.insert({
-      calendarId: 'primary',
-      resource: event,
-    });
-    console.log('Event created:', response.data.htmlLink);
-    return response.data;
-  } catch (error) {
-    console.error('Error creating event:', error);
-    throw new Error('Error creating event');
-  }
-}
-
-// Define School schema
+// Define schemas and models
 const schoolSchema = new mongoose.Schema({
   name: { type: String, required: true },
   code: { type: String, required: true, unique: true }
@@ -115,7 +40,7 @@ const userSchema = new mongoose.Schema({
   school: { type: String, required: true },
   firstName: { type: String, required: true },
   lastName: { type: String, required: true },
-  grade: { type: String, required: true },
+  grade: { type: String },
   classes: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Class' }],
   assignments: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Assignment' }],
   team: { type: mongoose.Schema.Types.ObjectId, ref: 'Team' },
@@ -139,7 +64,8 @@ const teamSchema = new mongoose.Schema({
   name: { type: String, required: true },
   coordinator: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   students: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
-  practiceTimes: [{ start: Date, end: Date }]
+  practiceTimes: [{ start: Date, end: Date }],
+  additionalInfo: { type: Map, of: String }
 });
 const Team = mongoose.model('Team', teamSchema);
 
@@ -147,7 +73,8 @@ const clubSchema = new mongoose.Schema({
   name: { type: String, required: true },
   coordinator: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   students: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
-  meetingTimes: [{ start: Date, end: Date }]
+  meetingTimes: [{ start: Date, end: Date }],
+  additionalInfo: { type: Map, of: String }
 });
 const Club = mongoose.model('Club', clubSchema);
 
@@ -173,100 +100,6 @@ const assignmentSchema = new mongoose.Schema({
 });
 const Assignment = mongoose.model('Assignment', assignmentSchema);
 
-// Helper functions
-async function calculateOverallGrade(studentId, classId) {
-  try {
-    const user = await User.findById(studentId).populate({
-      path: 'assignments',
-      populate: {
-        path: 'class',
-        match: { _id: classId },
-      },
-    });
-
-    if (!user) {
-      throw new Error('Student not found');
-    }
-
-    const assignments = user.assignments.filter(assignment => assignment.class && assignment.class._id.toString() === classId);
-
-    let formativeTotalPoints = 0;
-    let formativeScoredPoints = 0;
-    let summativeTotalPoints = 0;
-    let summativeScoredPoints = 0;
-
-    assignments.forEach(assignment => {
-      const grade = assignment.grades.find(g => g.student.toString() === studentId);
-      if (grade) {
-        if (assignment.category === 'Formative') {
-          formativeTotalPoints += assignment.points;
-          formativeScoredPoints += grade.grade;
-        } else if (assignment.category === 'Summative') {
-          summativeTotalPoints += assignment.points;
-          summativeScoredPoints += grade.grade;
-        }
-      }
-    });
-
-    const formativePercentage = formativeTotalPoints > 0 ? (formativeScoredPoints / formativeTotalPoints) * 100 : 0;
-    const summativePercentage = summativeTotalPoints > 0 ? (summativeScoredPoints / summativeTotalPoints) * 100 : 0;
-    const overallPercentage = (formativePercentage * 0.2) + (summativePercentage * 0.8);
-
-    return {
-      formative: {
-        totalPoints: formativeTotalPoints,
-        scoredPoints: formativeScoredPoints,
-        percentage: formativePercentage,
-      },
-      summative: {
-        totalPoints: summativeTotalPoints,
-        scoredPoints: summativeScoredPoints,
-        percentage: summativePercentage,
-      },
-      overall: {
-        percentage: overallPercentage,
-      }
-    };
-  } catch (error) {
-    console.error(`Error calculating grade for student ${studentId} in class ${classId}:`, error);
-    return {
-      formative: { totalPoints: 0, scoredPoints: 0, percentage: 0 },
-      summative: { totalPoints: 0, scoredPoints: 0, percentage: 0 },
-      overall: { percentage: 0 }
-    };
-  }
-}
-
-async function calculateOverallGradesForClasses(studentId, classIds) {
-  const overallGrades = [];
-
-  for (const classId of classIds) {
-    const overallGrade = await calculateOverallGrade(studentId, classId);
-    overallGrades.push({ 
-      classId, 
-      overall: overallGrade.overall,
-      formative: overallGrade.formative,
-      summative: overallGrade.summative
-    });
-  }
-
-  return overallGrades;
-}
-
-function calculateGradeImpact(currentGrade, assignmentPoints, categoryWeight, classOverallGrade) {
-  if (!classOverallGrade || !classOverallGrade.formative || !classOverallGrade.summative) {
-    return 0;
-  }
-
-  const totalPoints = classOverallGrade.formative.totalPoints + classOverallGrade.summative.totalPoints + assignmentPoints;
-  const scoredPoints = classOverallGrade.formative.scoredPoints + classOverallGrade.summative.scoredPoints;
-
-  const newGrade = ((scoredPoints + assignmentPoints * categoryWeight) / totalPoints) * 100;
-
-  return newGrade - currentGrade;
-}
-
-// API Endpoints
 // Register endpoint
 app.post('/register', async (req, res) => {
   const { email, password, role, schoolCode, firstName, lastName, grade } = req.body;
@@ -283,11 +116,10 @@ app.post('/register', async (req, res) => {
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
-
     const user = new User({ email, password: hashedPassword, role, school: school.name, firstName, lastName, grade });
-
     const savedUser = await user.save();
     const token = jwt.sign({ email: user.email, role: user.role, school: user.school }, secretKey, { expiresIn: '1h' });
+
     res.status(201).json({ token, role: user.role, school: user.school, firstName: user.firstName, lastName: user.lastName });
   } catch (error) {
     res.status(500).send('Error registering user');
@@ -297,74 +129,28 @@ app.post('/register', async (req, res) => {
 // Login endpoint
 app.post('/login', async (req, res) => {
   const { email, password } = req.body;
-  const user = await User.findOne({ email });
-  if (!user) {
-    return res.status(401).send('Invalid email or password');
-  }
-  const isPasswordValid = await bcrypt.compare(password, user.password);
-  if (!isPasswordValid) {
-    return res.status(401).send('Invalid email or password');
-  }
-  const token = jwt.sign({ email: user.email, role: user.role, school: user.school }, secretKey, { expiresIn: '1h' });
-  res.json({
-    token,
-    role: user.role,
-    school: user.school,
-    firstName: user.firstName,
-    lastName: user.lastName,
-    userId: user._id.toString(),
-  });
-});
-
-// Add class endpoint
-app.post('/classes', async (req, res) => {
-  const { className, subject, period, color, teacher } = req.body;
-
   try {
-    const teacherObjectId = new mongoose.Types.ObjectId(teacher);
-    const newClass = new Class({ className, subject, period, color, teacher: teacherObjectId });
-    const savedClass = await newClass.save();
-    res.status(201).json(savedClass);
-  } catch (error) {
-    console.error('Error adding class:', error);
-    res.status(500).send(`Error adding class: ${error.message}`);
-  }
-});
-
-// Add students to class endpoint
-app.post('/classes/addStudents', async (req, res) => {
-  const { className, students } = req.body;
-  console.log(`Adding students to class: ${className}, Students: ${students}`);
-
-  try {
-    const classObjectId = new mongoose.Types.ObjectId(className);
-    const classDoc = await Class.findById(classObjectId);
-    if (!classDoc) {
-      console.log('Class not found');
-      return res.status(404).send('Class not found');
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(401).send({ message: 'Invalid email or password' });
     }
 
-    if (students.length === 0) {
-      console.log('No students selected');
-      return res.status(200).send('No students added to class');
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+    if (!isPasswordValid) {
+      return res.status(401).send({ message: 'Invalid email or password' });
     }
 
-    students.forEach(studentId => {
-      const objectId = new mongoose.Types.ObjectId(studentId);
-      if (!classDoc.students.includes(objectId)) {
-        classDoc.students.push(objectId);
-      }
+    const token = jwt.sign({ email: user.email, role: user.role, school: user.school }, secretKey, { expiresIn: '1h' });
+    res.json({
+      token,
+      role: user.role,
+      school: user.school,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      userId: user._id.toString(),
     });
-
-    const userIds = students.map(studentId => new mongoose.Types.ObjectId(studentId));
-    console.log(`User IDs to update: ${userIds}`);
-    await User.updateMany({ _id: { $in: userIds } }, { $push: { classes: classDoc._id } });
-
-    await classDoc.save();
-    res.status(200).send('Students added to class');
   } catch (error) {
-    console.error('Error adding students to class:', error);
-    res.status(500).send(`Error adding students to class: ${error.message}`);
+    res.status(500).send({ message: 'Error logging in' });
   }
 });
 
@@ -378,11 +164,14 @@ app.post('/extracurricular', async (req, res) => {
       savedExtracurricular = new Team({ name, coordinator: coordinatorId, additionalInfo });
     } else if (type === 'club') {
       savedExtracurricular = new Club({ name, coordinator: coordinatorId, additionalInfo });
+    } else {
+      return res.status(400).send('Invalid type');
     }
 
     await savedExtracurricular.save();
     res.status(201).json(savedExtracurricular);
   } catch (error) {
+    console.error('Error creating extracurricular activity:', error);
     res.status(500).send('Error creating extracurricular activity');
   }
 });
@@ -392,12 +181,18 @@ app.post('/extracurricular/:id/students', async (req, res) => {
   const { id } = req.params;
   const { studentIds, type } = req.body;
 
+  if (!studentIds || !Array.isArray(studentIds) || studentIds.length === 0) {
+    return res.status(400).send('Invalid or missing studentIds');
+  }
+
   try {
     let extracurricular;
     if (type === 'team') {
       extracurricular = await Team.findById(id);
     } else if (type === 'club') {
       extracurricular = await Club.findById(id);
+    } else {
+      return res.status(400).send('Invalid type');
     }
 
     if (!extracurricular) {
@@ -413,36 +208,36 @@ app.post('/extracurricular/:id/students', async (req, res) => {
     await extracurricular.save();
     await User.updateMany(
       { _id: { $in: studentIds } },
-      { $push: { [type === 'team' ? 'team' : 'clubs']: id } }
+      { $push: { [type === 'team' ? 'teams' : 'clubs']: id } }
     );
 
     res.status(200).send('Students added to extracurricular activity');
   } catch (error) {
+    console.error('Error adding students:', error);
     res.status(500).send('Error adding students to extracurricular activity');
   }
 });
 
-// Schedule practice or meeting times
+// Schedule practice or meeting times for team or club
 app.post('/extracurricular/:id/times', async (req, res) => {
   const { id } = req.params;
-  const { start, end, type } = req.body;
+  const { start, duration, type } = req.body;
 
   try {
+    const startTime = new Date(start);
+    const endTime = new Date(startTime.getTime() + duration * 60000); // Convert duration from minutes to milliseconds
+
     let extracurricular;
     if (type === 'team') {
       extracurricular = await Team.findById(id);
+      extracurricular.practiceTimes.push({ start: startTime, end: endTime });
     } else if (type === 'club') {
       extracurricular = await Club.findById(id);
+      extracurricular.meetingTimes.push({ start: startTime, end: endTime });
     }
 
     if (!extracurricular) {
       return res.status(404).send('Extracurricular activity not found');
-    }
-
-    if (type === 'team') {
-      extracurricular.practiceTimes.push({ start, end });
-    } else if (type === 'club') {
-      extracurricular.meetingTimes.push({ start, end });
     }
 
     await extracurricular.save();
@@ -521,99 +316,6 @@ app.get('/students/:studentId/available-time-slots', async (req, res) => {
   }
 });
 
-// Fill calendar with assignments
-app.post('/students/:studentId/fill-calendar', async (req, res) => {
-  const { studentId } = req.params;
-
-  try {
-    const assignments = await Assignment.find({
-      students: studentId,
-      turnedInStudents: { $ne: studentId },
-    }).populate('class');
-
-    const availableSlots = await getAvailableTimeSlots(studentId);
-    let calendarEvents = [];
-
-    assignments.sort((a, b) => {
-      const aPriority = calculatePriority(a);
-      const bPriority = calculatePriority(b);
-      return bPriority - aPriority;
-    });
-
-    assignments.forEach(assignment => {
-      const duration = (assignment.durationHours * 60) + assignment.durationMinutes;
-
-      for (let slot of availableSlots) {
-        const slotDuration = (slot.end - slot.start) / (1000 * 60);
-        if (slotDuration >= duration) {
-          calendarEvents.push({
-            summary: `Work on ${assignment.assignmentName}`,
-            description: `${assignment.class.className} - ${assignment.category} assignment`,
-            start: slot.start,
-            end: new Date(slot.start.getTime() + duration * 60000),
-          });
-
-          slot.start = new Date(slot.start.getTime() + duration * 60000);
-          break;
-        }
-      }
-    });
-
-    res.json(calendarEvents);
-  } catch (error) {
-    res.status(500).send('Error filling calendar with assignments');
-  }
-});
-
-async function getAvailableTimeSlots(studentId) {
-  const student = await User.findById(studentId).populate('team clubs');
-  const schoolTime = student.schoolTime;
-  const schoolStart = new Date(`1970-01-01T${schoolTime.start}:00Z`);
-  const schoolEnd = new Date(`1970-01-01T${schoolTime.end}:00Z`);
-
-  const practiceTimes = student.team ? student.team.practiceTimes : [];
-  const meetingTimes = student.clubs.flatMap(club => club.meetingTimes);
-
-  const busyTimes = [...practiceTimes, ...meetingTimes];
-
-  const availableSlots = [];
-  const dayStart = new Date(`1970-01-01T00:00:00Z`);
-  const dayEnd = new Date(`1970-01-01T23:59:59Z`);
-
-  for (let time = dayStart; time < dayEnd; time.setMinutes(time.getMinutes() + 30)) {
-    const slotStart = new Date(time);
-    const slotEnd = new Date(time);
-    slotEnd.setMinutes(slotEnd.getMinutes() + 30);
-
-    if (slotStart >= schoolStart && slotEnd <= schoolEnd) {
-      continue;
-    }
-
-    const conflicts = busyTimes.some(busyTime => {
-      const busyStart = new Date(busyTime.start);
-      const busyEnd = new Date(busyTime.end);
-      return (slotStart >= busyStart && slotStart < busyEnd) || (slotEnd > busyStart && slotEnd <= busyEnd);
-    });
-
-    if (!conflicts) {
-      availableSlots.push({ start: slotStart, end: slotEnd });
-    }
-  }
-
-  return availableSlots;
-}
-
-function calculatePriority(assignment) {
-  const dueDate = new Date(assignment.dueDate);
-  const now = new Date();
-  const daysUntilDue = (dueDate - now) / (1000 * 60 * 60 * 24);
-
-  const categoryWeight = assignment.category === 'Summative' ? 0.8 : 0.2;
-  const pointsWeight = assignment.points;
-
-  return (1 / daysUntilDue) + (categoryWeight * 10) + (pointsWeight / 10);
-}
-
 // Add assignment to class endpoint
 app.post('/classes/:classId/assignments', async (req, res) => {
   const { classId } = req.params;
@@ -651,20 +353,6 @@ app.post('/classes/:classId/assignments', async (req, res) => {
 
     classDoc.assignments.push(savedAssignment._id);
     await classDoc.save();
-
-    const startDate = new Date(dueDate);
-    const endDate = new Date(startDate);
-    endDate.setHours(startDate.getHours() + parseInt(durationHours));
-    endDate.setMinutes(startDate.getMinutes() + parseInt(durationMinutes));
-
-    const eventDetails = {
-      summary: assignmentName,
-      description: `${category} assignment for ${classDoc.className}`,
-      start: startDate.toISOString(),
-      end: endDate.toISOString(),
-    };
-
-    await addEventToCalendar(eventDetails);
 
     res.status(201).json({ message: 'Assignment added successfully', assignment: savedAssignment });
   } catch (error) {
@@ -1268,6 +956,39 @@ app.get('/students/:studentId/todo-priority', async (req, res) => {
   } catch (error) {
     console.error('Error generating to-do priority list:', error);
     res.status(500).send('Error generating to-do priority list');
+  }
+});
+
+// Fetch teams and clubs for a specific coordinator
+app.get('/users/:userId/extracurriculars', async (req, res) => {
+  const { userId } = req.params;
+
+  try {
+    const teams = await Team.find({ coordinator: userId });
+    const clubs = await Club.find({ coordinator: userId });
+
+    res.json({ teams, clubs });
+  } catch (error) {
+    console.error('Error fetching extracurricular activities:', error);
+    res.status(500).send('Error fetching extracurricular activities');
+  }
+});
+
+// Fetch students from the same school as the coordinator
+app.get('/users/:userId/school/students', async (req, res) => {
+  const { userId } = req.params;
+
+  try {
+    const coordinator = await User.findById(userId);
+    if (!coordinator) {
+      return res.status(404).send('Coordinator not found');
+    }
+
+    const students = await User.find({ school: coordinator.school, role: 'student' });
+    res.json(students);
+  } catch (error) {
+    console.error('Error fetching students:', error);
+    res.status(500).send('Error fetching students');
   }
 });
 

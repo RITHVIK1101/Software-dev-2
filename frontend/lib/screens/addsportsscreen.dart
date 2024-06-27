@@ -29,16 +29,19 @@ class _AddSportScreenState extends State<AddSportScreen> {
     });
 
     final response = await http.post(
-      Uri.parse('http://localhost:3000/teams'),
+      Uri.parse('http://localhost:3000/extracurricular'),
       headers: {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer ${widget.token}',
       },
       body: jsonEncode({
+        'type': 'team',
         'name': _teamNameController.text,
-        'coachId': widget.userId,
-        'sport': _selectedSport,
-        'team': _selectedTeam,
+        'coordinatorId': widget.userId,
+        'additionalInfo': {
+          'sport': _selectedSport,
+          'level': _selectedTeam,
+        },
       }),
     );
 
@@ -50,7 +53,7 @@ class _AddSportScreenState extends State<AddSportScreen> {
       Navigator.pop(context);
     } else {
       setState(() {
-        _errorMessage = 'Failed to create team';
+        _errorMessage = 'Failed to create team: ${response.body}';
       });
     }
   }

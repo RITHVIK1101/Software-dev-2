@@ -25,7 +25,7 @@ class _LoginScreenState extends State<LoginScreen> {
       _isLoading = false;
     });
 
-    if (response.isNotEmpty) {
+    if (response.isNotEmpty && response.containsKey('token')) {
       if (response['role'] == 'teacher') {
         Navigator.pushReplacementNamed(
           context,
@@ -42,6 +42,18 @@ class _LoginScreenState extends State<LoginScreen> {
         Navigator.pushReplacementNamed(
           context,
           '/student',
+          arguments: {
+            'token': response['token'],
+            'school': response['school'],
+            'firstName': response['firstName'],
+            'lastName': response['lastName'],
+            'userId': response['userId'],
+          },
+        );
+      } else if (response['role'] == 'extracurricular coordinator') {
+        Navigator.pushReplacementNamed(
+          context,
+          '/extracurricular',
           arguments: {
             'token': response['token'],
             'school': response['school'],
