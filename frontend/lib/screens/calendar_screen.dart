@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:table_calendar/table_calendar.dart';
+import 'package:intl/intl.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 
@@ -18,10 +18,8 @@ class CalendarScreen extends StatefulWidget {
 
 class _CalendarScreenState extends State<CalendarScreen> {
   List<Map<String, dynamic>> events = [];
-  Map<DateTime, List> eventSource = {};
-  CalendarFormat _calendarFormat = CalendarFormat.month;
-  DateTime _focusedDay = DateTime.now();
-  DateTime? _selectedDay;
+  final ScrollController _scrollController = ScrollController();
+  DateTime _selectedDay = DateTime.now();
 
   @override
   void initState() {
@@ -44,9 +42,6 @@ class _CalendarScreenState extends State<CalendarScreen> {
         final List fetchedEvents = json.decode(response.body);
         setState(() {
           events = List<Map<String, dynamic>>.from(fetchedEvents);
-          eventSource = {
-            for (var event in events) DateTime.parse(event['start']): [event]
-          };
         });
       } else {
         print('Failed to fetch events: ${response.body}');
@@ -56,38 +51,126 @@ class _CalendarScreenState extends State<CalendarScreen> {
     }
   }
 
-  List _getEventsForDay(DateTime day) {
-    return eventSource[day] ?? [];
+  List<Widget> _buildDayView() {
+    List<Widget> timeSlots = [];
+    for (int i = 0; i < 24; i++) {
+      DateTime time = DateTime(
+        _selectedDay.year,
+        _selectedDay.month,
+        _selectedDay.day,
+        i,
+      );
+
+      List eventsAtThisHour = events.where((event) {
+        final eventStart = DateTime.parse(event['start']);
+        final eventEnd = DateTime.parse(event['end']);
+        return eventStart.hour <= i && eventEnd.hour >= i;
+      }).toList();
+
+      timeSlots.add(
+        Container(
+          height: 60, // Height for each hour slot
+          decoration: BoxDecoration(
+            border: Border(bottom: BorderSide(color: Colors.grey)),
+          ),
+          child: ListTile(
+            title: Text(DateFormat('hh:mm a').format(time)),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: eventsAtThisHour
+                  .map<Widget>((event) => Text(event['summary']))
+                  .toList(),
+            ),
+          ),
+        ),
+      );
+    }
+    return timeSlots;
+  }
+
+  void _navigateToPreviousDay() {
+    setState(() {
+      _selectedDay = _selectedDay.subtract(Duration(days: 1));
+    });
+  }
+
+  void _navigateToNextDay() {
+    setState(() {
+      _selectedDay = _selectedDay.add(Duration(days: 1));
+    });
   }
 
   @override
   Widget build(BuildContext context) {
+    final now = DateTime.now();
+    final currentHour = now.hour;
+    final currentMinute = now.minute;
+
     return Scaffold(
       appBar: AppBar(
-        title: Text('Calendar'),
+        title: Text('Day View'),
       ),
       body: Column(
         children: [
-          TableCalendar(
-            firstDay: DateTime.utc(2000, 1, 1),
-            lastDay: DateTime.utc(2030, 12, 31),
-            focusedDay: _focusedDay,
-            calendarFormat: _calendarFormat,
-            selectedDayPredicate: (day) {
-              return isSameDay(_selectedDay, day);
-            },
-            onDaySelected: (selectedDay, focusedDay) {
-              setState(() {
-                _selectedDay = selectedDay;
-                _focusedDay = focusedDay; // update `_focusedDay` here as well
-              });
-            },
-            eventLoader: _getEventsForDay,
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                IconButton(
+                  icon: Icon(Icons.arrow_back),
+                  onPressed: _navigateToPreviousDay,
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Text(
+                      DateFormat('EEEE').format(_selectedDay),
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Text(
+                      DateFormat('MMMM dd, yyyy').format(_selectedDay),
+                      style: TextStyle(
+                        fontSize: 16,
+                      ),
+                    ),
+                  ],
+                ),
+                IconButton(
+                  icon: Icon(Icons.arrow_forward),
+                  onPressed: _navigateToNextDay,
+                ),
+              ],
+            ),
           ),
-          ..._getEventsForDay(_selectedDay ?? _focusedDay).map(
-            (event) => ListTile(
-              title: Text(event['summary']),
-              subtitle: Text(event['description']),
+          Expanded(
+            child: Stack(
+              children: [
+                ListView(
+                  controller: _scrollController,
+                  children: _buildDayView(),
+                ),
+                Positioned(
+                  top: currentHour * 60.0 + currentMinute,
+                  left: 0,
+                  right: 0,
+                  child: Container(
+                    height: 2,
+                    color: Colors.red,
+                  ),
+                ),
+                Positioned(
+                  top: currentHour * 60.0 + currentMinute - 10,
+                  right: 10,
+                  child: Text(
+                    '${now.hour}:${now.minute.toString().padLeft(2, '0')}',
+                    style: TextStyle(color: Colors.red),
+                  ),
+                ),
+              ],
             ),
           ),
         ],

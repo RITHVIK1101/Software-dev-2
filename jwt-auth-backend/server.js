@@ -29,8 +29,13 @@ mongoose.connect('mongodb+srv://Rithvik:rithvik123@sdapp1.4t2ccd9.mongodb.net/my
 // Define schemas and models
 const schoolSchema = new mongoose.Schema({
   name: { type: String, required: true },
-  code: { type: String, required: true, unique: true }
+  code: { type: String, required: true, unique: true },
+  schoolTime: {
+    start: { type: String, required: true }, // Example: '08:00'
+    end: { type: String, required: true }    // Example: '15:00'
+  }
 });
+
 const School = mongoose.model('School', schoolSchema);
 
 const userSchema = new mongoose.Schema({
@@ -116,7 +121,19 @@ app.post('/register', async (req, res) => {
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    const user = new User({ email, password: hashedPassword, role, school: school.name, firstName, lastName, grade });
+    const user = new User({
+      email,
+      password: hashedPassword,
+      role,
+      school: school.name,
+      firstName,
+      lastName,
+      grade,
+      schoolTime: {
+        start: school.schoolStartTime,
+        end: school.schoolEndTime
+      }
+    });
     const savedUser = await user.save();
     const token = jwt.sign({ email: user.email, role: user.role, school: user.school }, secretKey, { expiresIn: '1h' });
 
@@ -125,6 +142,8 @@ app.post('/register', async (req, res) => {
     res.status(500).send('Error registering user');
   }
 });
+
+
 
 // Login endpoint
 app.post('/login', async (req, res) => {
@@ -218,7 +237,6 @@ app.post('/extracurricular/:id/students', async (req, res) => {
   }
 });
 
-// Schedule practice or meeting times for team or club
 app.post('/extracurricular/:id/times', async (req, res) => {
   const { id } = req.params;
   const { start, duration, type } = req.body;
@@ -315,6 +333,99 @@ app.get('/students/:studentId/available-time-slots', async (req, res) => {
     res.status(500).send('Error fetching available time slots');
   }
 });
+
+app.post('/students/:studentId/fill-calendar', async (req, res) => {
+  const { studentId } = req.params;
+
+  try {
+    const assignments = await Assignment.find({
+      students: studentId,
+      turnedInStudents: { $ne: studentId },
+    }).populate('class');
+
+    const availableSlots = await getAvailableTimeSlots(studentId);
+    let calendarEvents = [];
+
+    assignments.sort((a, b) => {
+      const aPriority = calculatePriority(a);
+      const bPriority = calculatePriority(b);
+      return bPriority - aPriority;
+    });
+
+    assignments.forEach(assignment => {
+      const duration = (assignment.durationHours * 60) + assignment.durationMinutes;
+
+      for (let slot of availableSlots) {
+        const slotDuration = (slot.end - slot.start) / (1000 * 60);
+        if (slotDuration >= duration) {
+          calendarEvents.push({
+            summary: `Work on ${assignment.assignmentName}`,
+            description: `${assignment.class ? assignment.class.className : 'Unknown Class'} - ${assignment.category} assignment`,
+            start: slot.start,
+            end: new Date(slot.start.getTime() + duration * 60000),
+          });
+
+          slot.start = new Date(slot.start.getTime() + duration * 60000);
+          break;
+        }
+      }
+    });
+
+    res.json(calendarEvents);
+  } catch (error) {
+    console.error('Error filling calendar with assignments:', error);
+    res.status(500).send('Error filling calendar with assignments');
+  }
+});
+
+async function getAvailableTimeSlots(studentId) {
+  const student = await User.findById(studentId).populate('team clubs');
+  const schoolTime = student.schoolTime;
+  const schoolStart = new Date(`1970-01-01T${schoolTime.start}:00Z`);
+  const schoolEnd = new Date(`1970-01-01T${schoolTime.end}:00Z`);
+
+  const practiceTimes = student.team ? student.team.practiceTimes : [];
+  const meetingTimes = student.clubs.flatMap(club => club.meetingTimes);
+
+  const busyTimes = [...practiceTimes, ...meetingTimes];
+
+  const availableSlots = [];
+  const dayStart = new Date(`1970-01-01T00:00:00Z`);
+  const dayEnd = new Date(`1970-01-01T23:59:59Z`);
+
+  for (let time = dayStart; time < dayEnd; time.setMinutes(time.getMinutes() + 30)) {
+    const slotStart = new Date(time);
+    const slotEnd = new Date(time);
+    slotEnd.setMinutes(slotEnd.getMinutes() + 30);
+
+    if (slotStart >= schoolStart && slotEnd <= schoolEnd) {
+      continue;
+    }
+
+    const conflicts = busyTimes.some(busyTime => {
+      const busyStart = new Date(busyTime.start);
+      const busyEnd = new Date(busyTime.end);
+      return (slotStart >= busyStart && slotStart < busyEnd) || (slotEnd > busyStart && slotEnd <= busyEnd);
+    });
+
+    if (!conflicts) {
+      availableSlots.push({ start: slotStart, end: slotEnd });
+    }
+  }
+
+  return availableSlots;
+}
+
+function calculatePriority(assignment) {
+  const dueDate = new Date(assignment.dueDate);
+  const now = new Date();
+  const daysUntilDue = (dueDate - now) / (1000 * 60 * 60 * 24);
+
+  const categoryWeight = assignment.category === 'Summative' ? 0.8 : 0.2;
+  const pointsWeight = assignment.points;
+
+  return (1 / daysUntilDue) + (categoryWeight * 10) + (pointsWeight / 10);
+}
 
 // Add assignment to class endpoint
 app.post('/classes/:classId/assignments', async (req, res) => {
@@ -687,15 +798,45 @@ app.get('/', async (req, res) => {
 
 // Fetch calendar events for a user
 app.get('/calendar/events', async (req, res) => {
-  const userId = req.query.userId;
+  const { userId } = req.query;
+
   try {
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).send('User not found');
+    }
+
+    const schoolStart = new Date(`1970-01-01T${user.schoolTime.start}:00Z`);
+    const schoolEnd = new Date(`1970-01-01T${user.schoolTime.end}:00Z`);
     const events = await Event.find({ userId });
-    res.json(events);
+
+    // Block school time for weekdays
+    const now = new Date();
+    const weekdaySchoolEvents = [];
+    for (let i = 0; i < 7; i++) {
+      const day = new Date(now);
+      day.setDate(now.getDate() + i);
+      if (day.getDay() > 0 && day.getDay() < 6) { // Monday to Friday
+        const startTime = new Date(day);
+        startTime.setUTCHours(schoolStart.getUTCHours(), schoolStart.getUTCMinutes(), 0, 0);
+        const endTime = new Date(day);
+        endTime.setUTCHours(schoolEnd.getUTCHours(), schoolEnd.getUTCMinutes(), 0, 0);
+        weekdaySchoolEvents.push({
+          summary: 'School Time',
+          description: 'School',
+          start: startTime,
+          end: endTime,
+        });
+      }
+    }
+
+    res.json([...events, ...weekdaySchoolEvents]);
   } catch (error) {
     console.error('Error fetching events:', error);
     res.status(500).send('Error fetching events');
   }
 });
+
 
 // Fetch overall grades for a specific student and class for a term
 app.get('/students/:studentId/classes/:classId/grades/overall/:term', async (req, res) => {
@@ -1015,6 +1156,23 @@ app.post('/assignments/:assignmentId/undo-turn-in', async (req, res) => {
   } catch (error) {
     console.error('Error undoing turn-in:', error);
     res.status(500).send(`Error undoing turn-in: ${error.message}`);
+  }
+});
+
+// Create a class
+app.post('/classes', async (req, res) => {
+  const { className, subject, period, color, teacher } = req.body;
+
+  try {
+    const newClass = new Class({ className, subject, period, color, teacher });
+    const savedClass = await newClass.save();
+
+    await User.findByIdAndUpdate(teacher, { $push: { classes: savedClass._id } });
+
+    res.status(201).json({ message: 'Class created successfully', class: savedClass });
+  } catch (error) {
+    console.error('Error creating class:', error);
+    res.status(500).send('Error creating class');
   }
 });
 

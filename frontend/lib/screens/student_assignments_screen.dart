@@ -2,6 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 
+import 'calendar_screen.dart';
+import 'package:sdapp/screens/student_gradebook_screen.dart';
+import 'student_screen.dart' hide GradebookPage;
+import 'student_classes_screen.dart';
+
 class StudentAssignmentsScreen extends StatefulWidget {
   final String token;
   final String userId;
@@ -49,6 +54,7 @@ class _StudentAssignmentsScreenState extends State<StudentAssignmentsScreen> {
         setState(() {
           assignments =
               List<Map<String, dynamic>>.from(json.decode(response.body));
+          print('Assignments fetched successfully: $assignments');
         });
       } else {
         print('Failed to fetch assignments: ${response.body}');
@@ -149,91 +155,156 @@ class _StudentAssignmentsScreenState extends State<StudentAssignmentsScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text('Assignments'),
-        actions: [
-          Row(
-            children: [
-              Text('Unprioritized'),
-              Switch(
-                value: isPrioritized,
-                onChanged: (value) {
-                  _togglePrioritization(value);
-                },
-              ),
-              Text('Prioritized'),
-            ],
-          ),
-        ],
       ),
-      body: Column(
+      body: Row(
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              ElevatedButton(
-                onPressed: () => _changeFilter('current'),
-                child: Text('Current'),
-              ),
-              ElevatedButton(
-                onPressed: () => _changeFilter('past-due'),
-                child: Text('Past Due'),
-              ),
-              ElevatedButton(
-                onPressed: () => _changeFilter('completed'),
-                child: Text('Completed'),
-              ),
-            ],
+          Container(
+            width: 80,
+            color: Color(0xFF5580C1),
+            child: Column(
+              children: [
+                IconButton(
+                  icon: Icon(Icons.home, color: Colors.white),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => StudentDashboard(
+                          token: widget.token,
+                          userId: widget.userId,
+
+                          firstName: '', // You'll need to provide this value
+                          lastName: '', // You'll need to provide this value
+                        ),
+                      ),
+                    );
+                  },
+                ),
+                IconButton(
+                  icon: Icon(Icons.check, color: Colors.white),
+                  onPressed: () {},
+                ),
+                IconButton(
+                  icon: Icon(Icons.calendar_today, color: Colors.white),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => CalendarScreen(
+                          token: widget.token,
+                          userId: widget.userId,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+                IconButton(
+                  icon: Icon(Icons.grade, color: Colors.white),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => GradebookPage(
+                          token: widget.token,
+                          userId: widget.userId,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+                IconButton(
+                  icon: Icon(Icons.class_, color: Colors.white),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => StudentClassesScreen(
+                          token: widget.token,
+                          userId: widget.userId,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ),
           ),
+          VerticalDivider(thickness: 1, width: 1),
           Expanded(
-            child: ListView.builder(
-              itemCount: assignments.length,
-              itemBuilder: (context, index) {
-                final assignment = assignments[index];
-                return Card(
-                  child: ListTile(
-                    title: Text(assignment['assignmentName']),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Class: ${assignment['className']}'),
-                        Text('Category: ${assignment['category']}'),
-                        Text('Due Date: ${assignment['dueDateFormatted']}'),
-                        Text(
-                            'Duration: ${formatDuration(assignment['durationHours'], assignment['durationMinutes'])}'),
-                        Text('Points: ${assignment['points']}'),
-                        if (assignment['rubric'] != null)
-                          Text('Rubric: ${assignment['rubric']}'),
-                        if (assignment['files'] != null &&
-                            assignment['files'].isNotEmpty)
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: assignment['files']
-                                .map<Widget>((file) => Text('File: $file'))
-                                .toList(),
-                          ),
-                        if (isPrioritized)
-                          Text(
-                              'Priority Score: ${assignment['priorityScore']}'),
-                      ],
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'To-Do List',
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF5580C1),
                     ),
-                    trailing: currentFilter == 'current'
-                        ? ElevatedButton(
-                            onPressed: () {
-                              _turnInAssignment(assignment['id']);
-                            },
-                            child: Text('Turn In'),
-                          )
-                        : currentFilter == 'completed' &&
-                                assignment['grade'] == null
-                            ? ElevatedButton(
-                                onPressed: () {
-                                  _undoTurnInAssignment(assignment['id']);
-                                },
-                                child: Text('Undo Turn In'),
-                              )
-                            : null,
                   ),
-                );
-              },
+                  SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      ElevatedButton(
+                        onPressed: () => _changeFilter('current'),
+                        child: Text('Current'),
+                      ),
+                      ElevatedButton(
+                        onPressed: () => _changeFilter('past-due'),
+                        child: Text('Past Due'),
+                      ),
+                      ElevatedButton(
+                        onPressed: () => _changeFilter('completed'),
+                        child: Text('Completed'),
+                      ),
+                    ],
+                  ),
+                  Expanded(
+                    child: assignments.isEmpty
+                        ? Center(child: Text('No assignments found.'))
+                        : ListView.builder(
+                            itemCount: assignments.length,
+                            itemBuilder: (context, index) {
+                              final assignment = assignments[index];
+                              return Card(
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                elevation: 2,
+                                child: ListTile(
+                                  title:
+                                      Text(assignment['assignmentName'] ?? ''),
+                                  subtitle: Text(
+                                    formatDuration(assignment['durationHours'],
+                                        assignment['durationMinutes']),
+                                    style: TextStyle(color: Colors.grey),
+                                  ),
+                                  trailing: Text(
+                                    assignment['dueDateFormatted'] ?? '',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      color: Color(0xFF5580C1),
+                                    ),
+                                  ),
+                                  onTap: () {
+                                    if (currentFilter == 'current') {
+                                      _turnInAssignment(assignment['id']);
+                                    } else if (currentFilter == 'completed' &&
+                                        assignment['grade'] == null) {
+                                      _undoTurnInAssignment(assignment['id']);
+                                    }
+                                  },
+                                ),
+                              );
+                            },
+                          ),
+                  ),
+                ],
+              ),
             ),
           ),
         ],

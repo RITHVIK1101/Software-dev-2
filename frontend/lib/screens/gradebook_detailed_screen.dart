@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'package:intl/intl.dart';
 
 class GradebookDetailScreen extends StatefulWidget {
   final String token;
@@ -40,14 +39,19 @@ class _GradebookDetailScreenState extends State<GradebookDetailScreen> {
       );
 
       if (response.statusCode == 200) {
-        List<Map<String, dynamic>> allGrades = List<Map<String, dynamic>>.from(json.decode(response.body));
+        List<Map<String, dynamic>> allGrades =
+            List<Map<String, dynamic>>.from(json.decode(response.body));
 
         setState(() {
           formativeGrades = allGrades
-              .where((grade) => grade['category'].toString().toLowerCase() == 'formative' && grade['className'] == widget.className)
+              .where((grade) =>
+                  grade['category'].toString().toLowerCase() == 'formative' &&
+                  grade['className'] == widget.className)
               .toList();
           summativeGrades = allGrades
-              .where((grade) => grade['category'].toString().toLowerCase() == 'summative' && grade['className'] == widget.className)
+              .where((grade) =>
+                  grade['category'].toString().toLowerCase() == 'summative' &&
+                  grade['className'] == widget.className)
               .toList();
         });
       } else {
@@ -112,7 +116,8 @@ class _GradebookDetailScreenState extends State<GradebookDetailScreen> {
               DataCell(Text(grade['assignmentName'])),
               DataCell(Text(_getLetterGrade(grade['percentage']))),
               DataCell(Text('${grade['percentage'] ?? 'N/A'}')),
-              DataCell(Text('${grade['grade'] ?? 'Not graded'} out of ${grade['points']}')),
+              DataCell(Text(
+                  '${grade['grade'] ?? 'Not graded'} out of ${grade['points']}')),
             ]);
           }).toList(),
         ),

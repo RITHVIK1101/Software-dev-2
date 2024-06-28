@@ -3,7 +3,10 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'gradebook_detailed_screen.dart'; // Import the new gradebook detail screen
 import '../login_screen.dart';
-import 'package:fl_chart/fl_chart.dart';
+import 'student_assignments_screen.dart';
+import 'calendar_screen.dart';
+import 'student_gradebook_screen.dart' hide GradebookPage;
+import 'student_classes_screen.dart';
 
 class StudentScreen extends StatelessWidget {
   final String token;
@@ -34,119 +37,86 @@ class StudentScreen extends StatelessWidget {
       appBar: AppBar(
         title: Text('Welcome $firstName $lastName'),
       ),
-      drawer: Drawer(
-        child: ListView(
-          padding: EdgeInsets.zero,
-          children: <Widget>[
-            DrawerHeader(
-              decoration: BoxDecoration(
-                color: Colors.blue,
-              ),
-              child: Text(
-                'Welcome $firstName $lastName',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 24,
-                ),
-              ),
-            ),
-            ListTile(
-              leading: Icon(Icons.assignment),
-              title: Text('Assignments'),
-              onTap: () {
-                Navigator.pushNamed(
-                  context,
-                  '/student/assignments',
-                  arguments: {
-                    'token': token,
-                    'userId': userId,
-                  },
-                );
-              },
-            ),
-            ListTile(
-              leading: Icon(Icons.calendar_today),
-              title: Text('Calendar'),
-              onTap: () {
-                Navigator.pushNamed(
-                  context,
-                  '/student/calendar',
-                  arguments: {
-                    'token': token,
-                    'userId': userId,
-                  },
-                );
-              },
-            ),
-            ListTile(
-              leading: Icon(Icons.class_),
-              title: Text('Classes'),
-              onTap: () {
-                Navigator.pushNamed(
-                  context,
-                  '/student/classes',
-                  arguments: {
-                    'token': token,
-                    'userId': userId,
-                  },
-                );
-              },
-            ),
-            ListTile(
-              leading: Icon(Icons.settings),
-              title: Text('Settings'),
-              onTap: () {},
-            ),
-            ListTile(
-              leading: RichText(
-                text: TextSpan(
-                  children: [
-                    TextSpan(
-                      text: 'A',
-                      style: TextStyle(
-                        fontSize: 20,
-                        color: Colors.black,
-                      ),
-                    ),
-                    WidgetSpan(
-                      child: Transform.translate(
-                        offset: const Offset(2, -8),
-                        child: Text(
-                          '+',
-                          textScaleFactor: 0.9,
-                          style: TextStyle(color: Colors.black),
+      body: Row(
+        children: [
+          Container(
+            width: 80,
+            color: Color(0xFF5580C1),
+            child: Column(
+              children: [
+                IconButton(
+                  icon: Icon(Icons.assignment, color: Colors.white),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => StudentAssignmentsScreen(
+                          token: token,
+                          userId: userId,
                         ),
                       ),
-                    ),
-                  ],
+                    );
+                  },
                 ),
-              ),
-              title: Text('Gradebook'),
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => GradebookPage(
-                      token: token,
-                      userId: userId,
-                    ),
-                  ),
-                );
-              },
+                IconButton(
+                  icon: Icon(Icons.calendar_today, color: Colors.white),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => CalendarScreen(
+                          token: token,
+                          userId: userId,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+                IconButton(
+                  icon: Icon(Icons.grade, color: Colors.white),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => GradebookPage(
+                          token: token,
+                          userId: userId,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+                IconButton(
+                  icon: Icon(Icons.class_, color: Colors.white),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => StudentClassesScreen(
+                          token: token,
+                          userId: userId,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+                IconButton(
+                  icon: Icon(Icons.exit_to_app, color: Colors.white),
+                  onPressed: () => _signOut(context),
+                ),
+              ],
             ),
-            ListTile(
-              leading: Icon(Icons.exit_to_app),
-              title: Text('Sign Out'),
-              onTap: () => _signOut(context),
+          ),
+          VerticalDivider(thickness: 1, width: 1),
+          Expanded(
+            child: StudentDashboard(
+              token: token,
+              userId: userId,
+              firstName: firstName,
+              lastName: lastName,
             ),
-          ],
-        ),
-      ),
-      body: StudentDashboard(
-        token: token,
-        userId: userId,
-        firstName: firstName,
-        lastName: lastName,
+          ),
+        ],
       ),
     );
   }

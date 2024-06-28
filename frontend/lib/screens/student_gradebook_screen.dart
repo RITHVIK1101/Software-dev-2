@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'gradebook_detailed_screen.dart'; // Import the new gradebook detail screen
 import '../login_screen.dart';
+import 'gradebook_detailed_screen.dart';
 
 class StudentScreen extends StatelessWidget {
   final String token;
@@ -20,7 +20,6 @@ class StudentScreen extends StatelessWidget {
   });
 
   void _signOut(BuildContext context) {
-    // Clear any stored data if necessary
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(builder: (context) => LoginScreen()),
@@ -166,7 +165,8 @@ class GradebookPage extends StatefulWidget {
 
 class _GradebookPageState extends State<GradebookPage> {
   List<Map<String, dynamic>> classes = [];
-  Map<String, Map<String, double>> grades = {};
+  Map<String, Map<String, String>> grades = {};
+  bool isLoading = true;
 
   @override
   void initState() {
@@ -211,13 +211,20 @@ class _GradebookPageState extends State<GradebookPage> {
       if (response.statusCode == 200) {
         setState(() {
           grades =
-              Map<String, Map<String, double>>.from(json.decode(response.body));
+              Map<String, Map<String, String>>.from(json.decode(response.body));
+          isLoading = false;
         });
       } else {
         print('Failed to fetch grades: ${response.body}');
+        setState(() {
+          isLoading = false;
+        });
       }
     } catch (error) {
       print('Error fetching grades: $error');
+      setState(() {
+        isLoading = false;
+      });
     }
   }
 
@@ -255,11 +262,9 @@ class _GradebookPageState extends State<GradebookPage> {
             ),
           ),
           Expanded(
-            child: Center(
-              child: classes.isEmpty
-                  ? Text('Select a class to view grades')
-                  : _buildGradeGrid(),
-            ),
+            child: isLoading
+                ? Center(child: CircularProgressIndicator())
+                : _buildGradeGrid(),
           ),
         ],
       ),
@@ -268,32 +273,35 @@ class _GradebookPageState extends State<GradebookPage> {
 
   Widget _buildGradeGrid() {
     List<String> terms = ['T1', 'T2', 'T3', 'T4'];
-    return Table(
-      border: TableBorder.all(),
-      children: [
-        TableRow(
-          children: [
-            TableCell(child: Center(child: Text(''))),
-            ...classes
-                .map((c) =>
-                    TableCell(child: Center(child: Text(c['className']))))
-                .toList(),
-          ],
-        ),
-        ...terms.map((term) {
-          return TableRow(
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Table(
+        border: TableBorder.all(),
+        children: [
+          TableRow(
             children: [
-              TableCell(child: Center(child: Text(term))),
-              ...classes.map((c) {
-                String className = c['className'];
-                double grade = grades[className]?[term] ?? 0.0;
-                return TableCell(
-                    child: Center(child: Text(grade.toStringAsFixed(2))));
-              }).toList(),
+              TableCell(child: Center(child: Text(''))),
+              ...classes
+                  .map((c) =>
+                      TableCell(child: Center(child: Text(c['className']))))
+                  .toList(),
             ],
-          );
-        }).toList(),
-      ],
+          ),
+          ...terms.map((term) {
+            return TableRow(
+              children: [
+                TableCell(child: Center(child: Text(term))),
+                ...classes.map((c) {
+                  String className = c['className'];
+                  String grade = grades[className]?[term] ?? '-';
+                  return TableCell(
+                      child: Center(child: Text(grade == '0.0' ? '-' : grade)));
+                }).toList(),
+              ],
+            );
+          }).toList(),
+        ],
+      ),
     );
   }
 }

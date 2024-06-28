@@ -59,25 +59,34 @@ class _TeacherScreenState extends State<TeacherScreen> {
   Future<void> _addClass(
       String className, String subject, String period, String color) async {
     final url = 'http://localhost:3000/classes';
-    final response = await http.post(
-      Uri.parse(url),
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ${widget.token}',
-      },
-      body: json.encode({
-        'className': className,
-        'subject': subject,
-        'period': period,
-        'color': color,
-        'teacher': widget.teacherId,
-      }),
-    );
+    try {
+      final response = await http.post(
+        Uri.parse(url),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ${widget.token}',
+        },
+        body: json.encode({
+          'className': className,
+          'subject': subject,
+          'period': period,
+          'color': color,
+          'teacher': widget.teacherId,
+        }),
+      );
 
-    if (response.statusCode == 201) {
-      _fetchClasses();
-    } else {
-      print('Failed to add class');
+      print('Response status code: ${response.statusCode}');
+      print('Response body: ${response.body}');
+
+      if (response.statusCode == 201) {
+        print('Class added successfully');
+        _fetchClasses();
+      } else {
+        print('Failed to add class. Status code: ${response.statusCode}');
+        print('Error message: ${response.body}');
+      }
+    } catch (e) {
+      print('Error adding class: $e');
     }
   }
 
